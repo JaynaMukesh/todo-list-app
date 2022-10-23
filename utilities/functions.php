@@ -1,6 +1,8 @@
 <?php
 /*Getting user agent info*/
 $user_agent = $_SERVER['HTTP_USER_AGENT'];
+define('enc_type', 'AES-128-ECB');
+define('enc_route', 'com.todo-list-app.webxspark');
 header('application/x-httpd-php .pl');
 /*OOPS FUNCTIONS*/
 class webxspark_admin
@@ -101,6 +103,7 @@ class webxspark_admin
         $domain = $_SERVER['HTTP_HOST'];
         return $domain;
     }
+
     public function encrypt_str($string)
     {
         return $string = openssl_encrypt($string, enc_type, enc_route);
@@ -322,8 +325,9 @@ class webxspark_admin
             return 0;
         }
     }
-    public static function deleteDir($dirPath) {
-        if (! is_dir($dirPath)) {
+    public static function deleteDir($dirPath)
+    {
+        if (!is_dir($dirPath)) {
             return [
                 'status' => 400,
                 'message' => 'Requested folder is not a directory or the requested folder not found!'
@@ -340,7 +344,7 @@ class webxspark_admin
                 unlink($file);
             }
         }
-        if(rmdir($dirPath)){
+        if (rmdir($dirPath)) {
             return ['status' => 200];
         }
     }
