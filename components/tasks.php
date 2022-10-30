@@ -15,13 +15,7 @@ if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && ($_SERVER['HTTP_X_REQUESTED_WITH
         $App = new webxspark_admin;
         $ip = $App::fetch_ip();
 
-        if (file_exists("../tasks/{$ip}.json")) {
-            // $prevData = file_get_contents("../tasks/{$ip}.json");
-            //     $content = "{}";
-            //     $fp = fopen("../tasks/{$ip}.json", "wb");
-            //     fwrite($fp, $content);
-            //     fclose($fp);
-        } else {
+        if (file_exists("../tasks/{$ip}.json")) {} else {
             $data['data'] = [];
             $content = json_encode($data, JSON_PRETTY_PRINT);
             $fp = fopen("../tasks/{$ip}.json", "wb");

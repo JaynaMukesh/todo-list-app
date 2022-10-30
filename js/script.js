@@ -31,6 +31,18 @@ var app = {
         const _domID = domID;
         this.preloadComponents(domID);
         this.initializeSettings(domID);
+        this.swc();
+    },
+    swc() {
+        if ("serviceWorker" in navigator) {
+            window.addEventListener("load", function () {
+                navigator.serviceWorker
+                    .register("./serviceWorker.js")
+                    .then(res => console.log("service worker registered"))
+                    .catch(err => console.log("service worker not registered", err))
+            })
+        }
+
     },
     domID() {
         return makeid(10)
