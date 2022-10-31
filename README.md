@@ -11,7 +11,7 @@
 
 ## Installation
 
-Cloud storage features requires [PHP](https://nodejs.org/) 7.0+ to run.
+Cloud storage features requires [PHP](https://php.net/) 7.0+ to run.
 
 
 
