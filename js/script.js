@@ -1,3 +1,4 @@
+function niceBytes(a) { let b = 0, c = parseInt(a, 10) || 0; for (; 1024 <= c && ++b;)c /= 1024; return c.toFixed(10 > c && 0 < b ? 1 : 0) + " " + ["bytes", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"][b] }
 function wxp_dismiss_modal() {
     setTimeout(function () {
         $('body').removeAttr('class');
@@ -26,9 +27,25 @@ function dismiss_modal(modal_id, root) {
 }
 var app = {
     _init_() {
-        var domID = makeid(10);
+        var domID = this.domID();
+        const _domID = domID;
         this.preloadComponents(domID);
-        this.timerCheck(domID);
+        this.initializeSettings(domID);
+        this.swc();
+    },
+    swc() {
+        if ("serviceWorker" in navigator) {
+            window.addEventListener("load", function () {
+                navigator.serviceWorker
+                    .register("./serviceWorker.js")
+                    .then(res => console.log("service worker registered"))
+                    .catch(err => console.log("service worker not registered", err))
+            })
+        }
+
+    },
+    domID() {
+        return makeid(10)
     },
     preloadComponents(domID) {
         Wxp_DOM.createElement('', `wxp-dom-${domID}`, 'wxp-app', async () => {
@@ -44,6 +61,77 @@ var app = {
             </div>`, `wxp-dom-${domID}`);
             }
         });
+    },
+    initializeSettings(domID) {
+        $('[wxpclid="settings"]').click(() => {
+            var settings = this.renderHTMLModal({
+                title: 'App Settings'
+            })
+            var localData = JSON.parse(localStorage.WXP_TODO);
+            var blob = new Blob([$(`ul`).text()], { type: "text/plain" });
+            var url = window.URL.createObjectURL(blob);
+            console.log(`Cached Data: "${url}"`);
+            var storageOccupied = niceBytes(blob.size);
+            settings.modal.render(`<div class="container m-5 p-2 rounded mx-auto bg-light shadow">
+            <div class="row m-1 p-3">
+                <div class="col col-11 mx-auto">
+                        <div class="row mb-6">
+                            <!--begin::Label-->
+                            <label class="col-lg-2 col-form-label fw-bold fs-6">
+                                <span class="">Data Storage Type:</span>
+                            </label>
+                            <!--end::Label-->
+                            <!--begin::Col-->
+                            <div class="col-lg-10 fv-row">
+                            <label class="form-check form-check-inline form-check-solid me-5">
+                                <span class="fw-bold ps-2 fs-6"><h3>${localData.storage}</h3></span>
+                            </label>
+                            </div>
+                           
+                        </div>
+                        <br>
+                        <p>Storage occupied: ${storageOccupied}</p>
+                        <div class="d-flex flex-stack pt-15 float-right">
+                            <div class="mr-2"></div>
+                            <div>
+                                <button wxpclid="uninstall" class="btn btn-primary">Uninstall/Re-install</button>
+                            </div>
+                        </div>
+                </div>
+            </div>
+            <div class="col mx-auto"></div>
+        </div>`);
+            $('[wxpclid="uninstall"]').click(() => {
+                if (confirm("You will lose all your saved tasks! Are you sure to proceed?")) {
+                    settings.modal.close();
+                    var x = Wxp_DOM.progressBar("10%", '[class="container m-5 p-2 rounded mx-auto bg-light shadow"]', { text: true, height: "30px" })
+                    setTimeout(() => {
+                        x.update("40%");
+                        wipe().then(r => {
+                            setTimeout(() => {
+                                x.update("90%")
+                                setTimeout(() => { x.dismiss(); window.location.reload() }, 500);
+                            }, 1500);
+                        })
+                    }, 800);
+                    function wipe() {
+                        return new Promise((resolve, reject) => {
+                            var localData = JSON.parse(localStorage.WXP_TODO);
+                            localStorage.removeItem("WXP_TODO");
+                            if (localData.storage == "cloud") {
+                                app.compRequest({
+                                    action: 'wipe'
+                                }).then(resp => {
+                                    resolve('verified');
+                                })
+                            } else {
+                                setTimeout(() => resolve('verified'), 700);
+                            }
+                        })
+                    }
+                }
+            })
+        })
     },
     renderSkeleton(domID) {
         return new Promise((resolve, reject) => {
@@ -61,8 +149,8 @@ var app = {
                 <div class="row m-1 p-4">
                     <div class="col">
                         <div class="p-1 h1 text-primary text-center mx-auto display-inline-block">
-                            <i class="fa fa-check bg-primary text-white rounded p-2"></i>
-                            <u>My Todo-s</u>
+                            <i class="fa fa-check bg-primary text-white rounded p-2" style="font-size: 30px;"></i>
+                            <u style="font-size: 26px;">My Todo-s</u>
                         </div>
                     </div>
                 </div>
@@ -78,15 +166,17 @@ var app = {
                                 <button wxpclid="add-new" type="submit" class="btn btn-primary">Add</button>
                             </div>
                         </div>
+                        <div class="linear-progress-material small" wxpclid="progress" style="width: 100%; height: 3px; display: none;"><div class="bar bar1"></div><div class="bar bar2"></div></div>
                     </form>
                     </div>
                 </div>
                 <div class="p-2 mx-4 border-black-25 border-bottom"></div>
+                
                 <!-- View options section -->
                 <div class="row m-1 p-3 px-5 justify-content-end">
                     
                     <div class="col-auto d-flex align-items-center px-1 pr-3">
-                        <i style="font-size: 20px;" class="fa fa-cog fa-6 text-info btn mx-0 px-0 pl-1" wxp-tooltip data-toggle="tooltip" data-placement="top" title="Settings"></i>
+                        <i style="font-size: 20px;" class="fa fa-cog fa-6 text-info btn mx-0 px-0 pl-1" wxp-tooltip data-toggle="tooltip" data-placement="top" wxpclid="settings" title="Settings"></i>
                     </div>
                 </div>
                 <!-- Todo list section -->
@@ -111,18 +201,26 @@ var app = {
                             var _domID = makeid(10);
                             $(`[wxpclid="${domID}"]`).attr('wxpclid', _domID);
                             domID = _domID;
-                            app.init_components(domID,true);
-                        }
-                        var ld = app.validateLocalStorage();
-                        if (ld == 'install') {
-                            // window.location.reload();
-                        } else {
-                            ld.data[makeid(5)] = {
-                                task: newData,
-                                timestamp: new Date(),
-                                isCompleted: false
-                            };
-                            localStorage.WXP_TODO = JSON.stringify(ld);
+                            app.init_components(domID, true);
+                            var ld = app.validateLocalStorage();
+                            if (ld == 'install') {
+                                // window.location.reload();
+                            } else {
+                                var t = ld.data[makeid(5)] = {
+                                    task: newData,
+                                    timestamp: new Date(),
+                                    isCompleted: false
+                                };
+                                var localData = JSON.parse(localStorage.WXP_TODO);
+                                if (localData.storage == "cloud") {
+                                    app.insertIntoDB({
+                                        action: 'insert',
+                                        content: t
+                                    });
+                                } else if (localData.storage == "local") {
+                                    localStorage.WXP_TODO = JSON.stringify(ld);
+                                }
+                            }
                         }
                     }
                 });
@@ -144,12 +242,20 @@ var app = {
         var task = $(`[wxp-data="${data_id}"]`).text();
         //update task state in localdata
         var localData = JSON.parse(localStorage.WXP_TODO);
-        $.each(localData.data, (k, v) => {
-            if (v.task == task) {
-                v.isCompleted = isCompleted;
-            }
-        })
-        localStorage.WXP_TODO = JSON.stringify(localData);
+        if (localData.storage == "cloud") {
+            app.updateCloudStorage({
+                task: task,
+                isCompleted: isCompleted,
+                action: 'update'
+            });
+        } else if (localData.storage == "local") {
+            $.each(localData.data, (k, v) => {
+                if (v.task == task) {
+                    v.isCompleted = isCompleted;
+                }
+            })
+            localStorage.WXP_TODO = JSON.stringify(localData);
+        }
     },
     install_app() {
         return new Promise((resolve, reject) => {
@@ -218,6 +324,7 @@ var app = {
                         data.storage = storage;
                     } else if (storage == "cloud") {
                         data.storage = storage;
+                        app.insertElm(app.domID(), app.fetchCloudResource());
                     } else {
                         window.location.reload();
                     }
@@ -233,7 +340,107 @@ var app = {
             // }, 500);
         })
     },
-    init_components(domID, safeUpdate = false) {
+    fetchCloudResource() {
+        return new Promise((resolve, reject) => {
+            app.progressBar('show');
+            this.compRequest({
+                action: 'fetchAll'
+            }, "POST").then(response => {
+                if (response.error) {
+                    alert(response.error);
+                } else {
+                    resolve(response.data);
+                }
+                app.progressBar('hide');
+            })
+        });
+    },
+    updateCloudStorage(data) {
+        app.progressBar('show');
+        this.compRequest(data, "POST").then(response => {
+            if (response.error) {
+                alert(response.error);
+            }
+            app.progressBar('hide');
+        })
+    },
+    insertIntoDB(data) {
+        app.progressBar('show');
+        this.compRequest(data, "POST").then(response => {
+            if (response.error) {
+                alert(response.error);
+            }
+            app.progressBar('hide');
+        })
+    },
+    deleteFromCloudStorage(data) {
+        app.progressBar('show');
+        this.compRequest(data, "POST").then(response => {
+            if (response.error) {
+                alert(response.error);
+            }
+            app.progressBar('hide');
+        })
+    },
+    remove(data_id) {
+        var task = $(`[wxp-data="${data_id}"]`).text(),
+            localData = JSON.parse(localStorage.WXP_TODO);
+        if (localData.storage == "cloud") {
+            this.deleteFromCloudStorage({
+                task: task,
+                action: 'delete'
+            });
+        } else if (localData.storage == "local") {
+            $.each(localData.data, (k, v) => {
+                if (v.task == task) {
+                    delete (localData.data[k]);
+                }
+            })
+            localStorage.WXP_TODO = JSON.stringify(localData);
+        }
+    },
+    init_delBtn() {
+        setTimeout(() => {
+            $.each(($('li')), (k, v) => {
+                var chkAttr = $(v).attr('__secure');
+                if (typeof chkAttr !== 'undefined' && chkAttr !== false) { } else {
+                    var data_id = makeid(20);
+                    $(v).attr('__secure', data_id);
+                    var text = ($(v).html());
+                    $(v).html(`<wxp-li-elm wxp-data="${data_id}" onclick="app.updateState('${data_id}')">${text}</wxp-li-elm><wxp-nonce-${data_id}></wxp-nonce-${data_id}>`);
+                    $(`wxp-nonce-${data_id}`).html(`<span class="close" data-toggle="tooltip" title="Remove" onclick="app.remove('${data_id}')" __del="${data_id}" >\u00D7</span>`)
+                }
+            })
+            /*Delete btn function*/
+            $('[__del]').click(function () {
+                var _tmp_elm = $(`[__secure="${$(this).attr('__del')}"]`),
+                    data_id = $(this).attr('__del');
+                _tmp_elm.css({ 'right': '0px', 'left': '' }).animate({
+                    'right': '100px',
+                    'opacity': '0'
+                });
+                setTimeout(() => {
+                    _tmp_elm.remove();
+                }, 650);
+            })
+        }, 500);
+    },
+    insertElm(domID, data) {
+        var check = this.validateLocalStorage();
+        if (check == 'install') { window.location.reload(); }
+        function __liAppend(dict) {
+            $.each(dict, (key, val) => {
+                var _class = '';
+                if (val.isCompleted == true || val.isCompleted == "true") {
+                    _class = 'checked';
+                }
+                Wxp_DOM.append(`<li class="${_class}">${val.task}</li>`, `ul[wxpclid="${domID}"]`);
+            })
+        }
+        __liAppend(data);
+        this.init_delBtn();
+    },
+    async init_components(domID, safeUpdate = false) {
         var check = this.validateLocalStorage();
         if (check == 'install') {
             this.install_app().then(resp => {
@@ -249,75 +456,32 @@ var app = {
         } else {
             /*Autoload-tasks*/
             if (safeUpdate == false) {
-                $.each(check.data, (key, val) => {
-                    var _class = '';
-                    if (val.isCompleted == true) {
-                        _class = 'checked';
-                    }
-                    Wxp_DOM.append(`<li class="${_class}">${val.task}</li>`, `ul[wxpclid="${domID}"]`);
-                })
+                if (check.storage == "cloud") {
+                    app.fetchCloudResource().then(cdata => {
+                        app.insertElm(domID, cdata);
+                    })
+                } else if (check.storage == "local") {
+                    app.insertElm(domID, check.data);
+                }
+            } else {
+                app.init_delBtn();
             }
         }
-        $.each(($('li')), (k, v) => {
-            var data_id = makeid(20);
-            $(v).attr('__secure', data_id);
-            var text = ($(v).html());
-            $(v).html(`<wxp-li-elm wxp-data="${data_id}" onclick="app.updateState('${data_id}')">${text}</wxp-li-elm><wxp-nonce-${data_id}></wxp-nonce-${data_id}>`);
-            $(`wxp-nonce-${data_id}`).html(`<span class="close" data-toggle="tooltip" title="Remove" __del="${data_id}" >\u00D7</span>`)
-        })
+
         $('[data-toggle="tooltip"]').tooltip();
-
-        /*Delete btn function*/
-        $('[__del]').click(function () {
-            var _tmp_elm = $(`[__secure="${$(this).attr('__del')}"]`),
-                data_id = $(this).attr('__del');
-            _tmp_elm.css({ 'right': '0px', 'left': '' }).animate({
-                'right': '100px',
-                'opacity': '0'
-            });
-            setTimeout(() => {
-                _tmp_elm.remove();
-            }, 650);
-            var task = $(`[wxp-data="${data_id}"]`).text(),
-                localData = JSON.parse(localStorage.WXP_TODO);
-            $.each(localData.data, (k, v) => {
-                if (v.task == task) {
-
-                    delete (localData.data[k]);
-                }
-            })
-            localStorage.WXP_TODO = JSON.stringify(localData);
-        })
     },
-    timerCheck(domID){
-        setInterval(() => {
-            this.cloudStorageSync(domID);
-        },5000);
-    },
-    cloudStorageSync(domID){
-        if(this.checkStorageType() == "cloud"){
-            var localData = localStorage.WXP_TODO;
-            this.compRequest({
-                action: 'validate',
-                data: localData
-            }).then(response => {
-                if(!response.error){
-                    console.log(response.resp);
-                }
-            })
-        }
-    },
-    compRequest(data){
+    compRequest(data, method = "POST") {
         return $.ajax({
-            url: './components/tasks.php?alt=json&token='+makeid(10),
-            method: 'POST',
+            url: './components/tasks.php?alt=json&token=' + makeid(10),
+            method: method,
             data: data,
-            dataType: 'JSON'
+            dataType: 'JSON',
+            error: (a, b) => this.handleAjaxError(a, b)
         })
     },
-    checkStorageType(){
+    checkStorageType() {
         var ld = this.validateLocalStorage();
-        if(ld.storage){
+        if (ld.storage) {
             return ld.storage;
         } else {
             // window.location.reload();
@@ -356,6 +520,34 @@ var app = {
         } else {
             return false;
         }
+    },
+    progressBar(action) {
+        var q = $('[wxpclid="progress"]');
+        if (action == "show") {
+            q.show();
+        } else if (action == "hide") {
+            q.hide();
+        }
+    },
+    handleAjaxError(jqXHR, exception) {
+        var error_msg = ''
+        if (jqXHR.status === 0) {
+            error_msg += "You're offline. Check your connection and server status.";
+        } else if (jqXHR.status == 404) {
+            error_msg += 'Error: The API request returns code 404 [File Not Found]';
+        } else if (jqXHR.status == 500) {
+            error_msg += 'Error: The API request returns code 500 [Internal Server Error]';
+        } else if (exception === 'parsererror') {
+            error_msg += 'Requested JSON parse failed!';
+        } else if (exception === 'timeout') {
+            error_msg +=
+                'Connection Time out. Please check your connection and server status!';
+        } else if (exception === 'abort') {
+            error_msg += 'AJAX Request aborted! Please try again later!';
+        } else {
+            error_msg += jqXHR.responseText;
+        }
+        alert('', error_msg)
     },
     renderHTMLModal(props) {
         function render_bs_modal_HTML(title, id, data_load, loader = false, width = '650px') {
